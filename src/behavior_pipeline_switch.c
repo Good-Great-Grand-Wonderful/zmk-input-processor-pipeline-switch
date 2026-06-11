@@ -9,7 +9,9 @@
  * Locality is BEHAVIOR_LOCALITY_EVENT_SOURCE: the behavior runs on whichever
  * half the key was pressed on, and switches that half's processor instance.
  * Place the binding on the half whose listener runs the pipelines. Node
- * names must fit the split transport's 16-byte behavior_dev field.
+ * names must be 8 chars or fewer: the BLE split relay truncates behavior
+ * names to ZMK_SPLIT_RUN_BEHAVIOR_DEV_LEN (9 bytes incl. NUL) and the
+ * peripheral resolves behaviors by that name.
  */
 #define DT_DRV_COMPAT zmk_behavior_pipeline_switch
 
