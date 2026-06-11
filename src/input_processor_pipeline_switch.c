@@ -174,19 +174,19 @@ static const struct zmk_input_processor_driver_api zip_ps_driver_api = {
 
 #define ZIP_PS_CHILD_DEFINE(child)                                                                 \
     static struct zip_ps_remainders _CONCAT(zip_ps_rem_,                                           \
-                                            DT_NODE_DEP_ORD(child))[ZIP_PS_REM_TRACKERS(child)] =  \
+                                            DT_DEP_ORD(child))[ZIP_PS_REM_TRACKERS(child)] =  \
         {};                                                                                        \
     static const struct zmk_input_processor_entry _CONCAT(                                         \
-        zip_ps_entries_, DT_NODE_DEP_ORD(child))[DT_PROP_LEN(child, input_processors)] = {         \
+        zip_ps_entries_, DT_DEP_ORD(child))[DT_PROP_LEN(child, input_processors)] = {         \
         LISTIFY(DT_PROP_LEN(child, input_processors), ZMK_INPUT_PROCESSOR_ENTRY_AT_IDX, (, ),      \
                 child)};
 
 #define ZIP_PS_PIPELINE(child)                                                                     \
     {                                                                                              \
         .processors_len = DT_PROP_LEN(child, input_processors),                                    \
-        .processors = _CONCAT(zip_ps_entries_, DT_NODE_DEP_ORD(child)),                            \
+        .processors = _CONCAT(zip_ps_entries_, DT_DEP_ORD(child)),                            \
         .remainders_len = ZIP_PS_REM_TRACKERS(child),                                              \
-        .remainders = _CONCAT(zip_ps_rem_, DT_NODE_DEP_ORD(child)),                                \
+        .remainders = _CONCAT(zip_ps_rem_, DT_DEP_ORD(child)),                                \
     }
 
 /* Inits at POST_KERNEL/95: must be after the wrapped sub-processors, which

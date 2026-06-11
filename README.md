@@ -8,10 +8,10 @@ mode without dedicating a layer to it.
 
 Includes two devicetree compatibles:
 
-- `zmk,input-processor-pipeline-switch` — the processor. Its child nodes are
+- `zmk,input-processor-pipeline-switch` - the processor. Its child nodes are
   the pipelines (indexed 0..N-1 in declaration order), each with its own
   `input-processors` list of ordinary processors.
-- `zmk,behavior-pipeline-switch` — the toggle behavior: each press advances
+- `zmk,behavior-pipeline-switch` - the toggle behavior: each press advances
   to the next pipeline, wrapping around.
 
 Pipeline iteration, per-entry parameters, and remainder tracking mirror
@@ -94,9 +94,11 @@ phandle-array. At least one child is required (enforced at compile time).
 The behavior uses `BEHAVIOR_LOCALITY_EVENT_SOURCE`: it runs on whichever
 half the key is physically pressed on, and switches that half's processor
 instance. Place the binding on the half whose listener (or input-split
-device) runs the pipelines — for a central-side listener that means a key on
-the central half. Behavior node names must be 15 characters or fewer (the
-split relay payload for behavior names is `char[16]`).
+device) runs the pipelines. For a central-side listener that means a key on
+the central half. Behavior **node names** (labels don't matter) must be 8
+characters or fewer: the BLE split relay truncates behavior names to
+`ZMK_SPLIT_RUN_BEHAVIOR_DEV_LEN` (9 bytes including the terminator) and the
+peripheral resolves the behavior by the truncated name, which then fails.
 
 ## How a switch behaves
 
