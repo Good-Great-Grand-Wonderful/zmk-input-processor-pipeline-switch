@@ -1,0 +1,31 @@
+# Copyright (c) 2026 Vincent Franco
+# SPDX-License-Identifier: MIT
+
+description: |
+  Input processor that routes events through one of several child pipelines
+  of input processors. The active pipeline is selected at runtime via the
+  zmk,behavior-pipeline-switch behavior and can be persisted to flash.
+  Child nodes are the pipelines, indexed 0..N-1 in declaration order.
+
+compatible: "zmk,input-processor-pipeline-switch"
+
+include: ip_zero_param.yaml
+
+properties:
+  persistent:
+    type: boolean
+    description: |
+      If enabled the active pipeline index is stored to flash and restored
+      at power on. Requires the settings subsystem.
+  save_delay:
+    default: 2000
+    type: int
+    description: Debounce in milliseconds before saving the index to flash.
+
+child-binding:
+  description: One selectable pipeline of input processors.
+
+  properties:
+    input-processors:
+      type: phandle-array
+      required: true
