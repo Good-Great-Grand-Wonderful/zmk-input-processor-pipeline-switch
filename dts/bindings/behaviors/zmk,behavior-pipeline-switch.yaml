@@ -2,12 +2,12 @@
 # SPDX-License-Identifier: MIT
 
 description: |
-  Cycles the active pipeline of a zmk,input-processor-pipeline-switch
-  processor. Param 1 is the cycle offset: 1 for next, -1 for previous.
+  Toggles the active pipeline of a zmk,input-processor-pipeline-switch
+  processor: each press advances to the next pipeline, wrapping around.
 
 compatible: "zmk,behavior-pipeline-switch"
 
-include: one_param.yaml
+include: zero_param.yaml
 
 properties:
   processor:

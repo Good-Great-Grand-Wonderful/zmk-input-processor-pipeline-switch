@@ -2,8 +2,9 @@
  * Copyright (c) 2026 Vincent Franco
  * SPDX-License-Identifier: MIT
  *
- * Keypress behavior that cycles the active pipeline of a
- * zmk,input-processor-pipeline-switch processor.
+ * Keypress behavior that toggles the active pipeline of a
+ * zmk,input-processor-pipeline-switch processor: each press advances to the
+ * next pipeline, wrapping around.
  *
  * Locality is BEHAVIOR_LOCALITY_EVENT_SOURCE: the behavior runs on whichever
  * half the key was pressed on, and switches that half's processor instance.
@@ -28,33 +29,6 @@ struct behavior_pipeline_switch_config {
     const struct device *processor;
 };
 
-#if IS_ENABLED(CONFIG_ZMK_BEHAVIOR_METADATA)
-
-static const struct behavior_parameter_value_metadata param_values[] = {
-    {
-        .display_name = "Next",
-        .type = BEHAVIOR_PARAMETER_VALUE_TYPE_VALUE,
-        .value = 1,
-    },
-    {
-        .display_name = "Previous",
-        .type = BEHAVIOR_PARAMETER_VALUE_TYPE_VALUE,
-        .value = -1,
-    },
-};
-
-static const struct behavior_parameter_metadata_set param_metadata_set[] = {{
-    .param1_values = param_values,
-    .param1_values_len = ARRAY_SIZE(param_values),
-}};
-
-static const struct behavior_parameter_metadata metadata = {
-    .sets_len = ARRAY_SIZE(param_metadata_set),
-    .sets = param_metadata_set,
-};
-
-#endif
-
 static int behavior_pipeline_switch_init(const struct device *dev) { return 0; }
 
 static int on_keymap_binding_pressed(struct zmk_behavior_binding *binding,
@@ -62,7 +36,7 @@ static int on_keymap_binding_pressed(struct zmk_behavior_binding *binding,
     const struct device *dev = zmk_behavior_get_binding(binding->behavior_dev);
     const struct behavior_pipeline_switch_config *config = dev->config;
 
-    int ret = zip_pipeline_switch_cycle(config->processor, binding->param1);
+    int ret = zip_pipeline_switch_cycle(config->processor, 1);
     if (ret < 0) {
         LOG_ERR("Failed to cycle pipeline on %s (err %d)", config->processor->name, ret);
         return ret;
@@ -79,9 +53,6 @@ static const struct behavior_driver_api behavior_pipeline_switch_driver_api = {
     .locality = BEHAVIOR_LOCALITY_EVENT_SOURCE,
     .binding_pressed = on_keymap_binding_pressed,
     .binding_released = on_keymap_binding_released,
-#if IS_ENABLED(CONFIG_ZMK_BEHAVIOR_METADATA)
-    .parameter_metadata = &metadata,
-#endif
 };
 
 /* Inits at POST_KERNEL/96: after the pipeline-switch processor (95) this

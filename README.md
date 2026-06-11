@@ -11,8 +11,8 @@ Includes two devicetree compatibles:
 - `zmk,input-processor-pipeline-switch` — the processor. Its child nodes are
   the pipelines (indexed 0..N-1 in declaration order), each with its own
   `input-processors` list of ordinary processors.
-- `zmk,behavior-pipeline-switch` — the behavior that cycles the active
-  pipeline (`1` = next, `-1` = previous).
+- `zmk,behavior-pipeline-switch` — the toggle behavior: each press advances
+  to the next pipeline, wrapping around.
 
 Pipeline iteration, per-entry parameters, and remainder tracking mirror
 ZMK's own input listener (`app/src/pointing/input_listener.c`), so wrapped
@@ -58,7 +58,7 @@ manifest:
     behaviors {
         ball_mode: ball_mode {
             compatible = "zmk,behavior-pipeline-switch";
-            #binding-cells = <1>;
+            #binding-cells = <0>;
             processor = <&zip_ball_mode>;
             display-name = "Ball Mode";
         };
@@ -70,7 +70,7 @@ manifest:
 };
 ```
 
-Then bind `&ball_mode 1` in your keymap. Other processors can sit alongside
+Then bind `&ball_mode` in your keymap. Other processors can sit alongside
 the switch in the listener's list (before or after it).
 
 ### Processor properties
