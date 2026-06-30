@@ -21,6 +21,12 @@ properties:
     default: 2000
     type: int
     description: Debounce in milliseconds before saving the index to flash.
+  default-index:
+    default: 0
+    type: int
+    description: |
+      Pipeline index made active at boot, before any persisted selection is
+      restored. Lets boot-default differ from child declaration order.
 
 child-binding:
   description: One selectable pipeline of input processors.
@@ -29,3 +35,8 @@ child-binding:
     input-processors:
       type: phandle-array
       required: true
+    label:
+      type: string
+      description: |
+        Human-readable name for this pipeline, surfaced to host-facing config
+        UIs via zip_pipeline_switch_label(). Defaults to the child node name.

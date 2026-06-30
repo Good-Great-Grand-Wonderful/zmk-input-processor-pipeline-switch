@@ -83,13 +83,22 @@ switch in the listener's list (before or after it).
 
 ### Processor properties
 
-| Property     | Type    | Required | Description                                            |
-| ------------ | ------- | -------- | ------------------------------------------------------ |
-| `persistent` | boolean | no       | Persist the active index to flash (requires settings).  |
-| `save_delay` | int     | no       | Debounce in ms before saving to flash (default 2000).   |
+| Property        | Type    | Required | Description                                              |
+| --------------- | ------- | -------- | ------------------------------------------------------- |
+| `persistent`    | boolean | no       | Persist the active index to flash (requires settings).   |
+| `save_delay`    | int     | no       | Debounce in ms before saving to flash (default 2000).    |
+| `default-index` | int     | no       | Pipeline active at boot before a persisted value loads.  |
 
 Child nodes: each child is one pipeline and requires an `input-processors`
-phandle-array. At least one child is required (enforced at compile time).
+phandle-array (at least one child, enforced at compile time). Each child may
+set an optional `label` string (defaults to the node name), surfaced via the
+introspection API for host config UIs:
+
+```c
+uint8_t     zip_pipeline_switch_count(dev);          // number of pipelines
+uint8_t     zip_pipeline_switch_active(dev);         // current index
+const char *zip_pipeline_switch_label(dev, index);   // label for a pipeline
+```
 
 ### Behavior properties
 
