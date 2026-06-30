@@ -2,16 +2,21 @@
  * Copyright (c) 2026 Vincent Franco
  * SPDX-License-Identifier: MIT
  *
- * Keypress behavior that toggles the active pipeline of a
- * zmk,input-processor-pipeline-switch processor: each press advances to the
- * next pipeline, wrapping around.
+ * Behavior that sets the active pipeline of a
+ * zmk,input-processor-pipeline-switch processor to an absolute index.
+ *   param1: target pipeline index (0..N-1, declaration order).
+ *   param2: persist flag - 0 = apply in RAM only (live preview), non-zero =
+ *           apply and save to flash (when the processor is `persistent`).
  *
  * Locality is BEHAVIOR_LOCALITY_EVENT_SOURCE: the behavior runs on whichever
- * half the key was pressed on, and switches that half's processor instance.
- * Place the binding on the half whose listener runs the pipelines. Node
- * names must be 8 chars or fewer: the BLE split relay truncates behavior
- * names to ZMK_SPLIT_RUN_BEHAVIOR_DEV_LEN (9 bytes incl. NUL) and the
- * peripheral resolves behaviors by that name.
+ * half the binding's event source points at, and switches that half's
+ * processor instance. From a keymap that is the half the key is pressed on;
+ * the central can also drive a specific peripheral's instance by invoking the
+ * binding with zmk_behavior_invoke_binding() and event.source set to the
+ * peripheral index (255 / UINT8_MAX = local/central). Node names must be 8
+ * chars or fewer: the BLE split relay truncates behavior names to
+ * ZMK_SPLIT_RUN_BEHAVIOR_DEV_LEN (9 bytes incl. NUL) and the peripheral
+ * resolves behaviors by that name.
  */
 #define DT_DRV_COMPAT zmk_behavior_pipeline_switch
 
@@ -38,9 +43,11 @@ static int on_keymap_binding_pressed(struct zmk_behavior_binding *binding,
     const struct device *dev = zmk_behavior_get_binding(binding->behavior_dev);
     const struct behavior_pipeline_switch_config *config = dev->config;
 
-    int ret = zip_pipeline_switch_cycle(config->processor, 1);
+    bool persist = (binding->param2 != 0);
+    int ret = zip_pipeline_switch_set(config->processor, (uint8_t)binding->param1, persist);
     if (ret < 0) {
-        LOG_ERR("Failed to cycle pipeline on %s (err %d)", config->processor->name, ret);
+        LOG_ERR("Failed to set pipeline on %s to %u (err %d)", config->processor->name,
+                (unsigned int)binding->param1, ret);
         return ret;
     }
     return 0;

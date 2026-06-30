@@ -125,15 +125,19 @@ static void save_work_callback(struct k_work *work) {
 
 #endif
 
-int zip_pipeline_switch_cycle(const struct device *dev, int32_t delta) {
+/* Shared by cycle and set: activate `index`, reset the incoming pipeline's
+ * remainders, and (when `persist`) schedule a debounced save. */
+static int zip_ps_apply(const struct device *dev, uint8_t index, bool persist) {
     struct zip_ps_data *data = dev->data;
     const struct zip_ps_config *config = dev->config;
 
-    int next = ((int)data->state.active + delta) % (int)config->pipelines_len;
-    if (next < 0) {
-        next += config->pipelines_len;
+    if (index >= config->pipelines_len) {
+        LOG_WRN("%s: pipeline index %d out of range (have %d)", dev->name, index,
+                config->pipelines_len);
+        return -EINVAL;
     }
-    data->state.active = (uint8_t)next;
+
+    data->state.active = index;
 
     // Stale fractional remainders from a previous activation are meaningless
     // for the new gesture, so start the incoming pipeline clean.
@@ -143,11 +147,26 @@ int zip_pipeline_switch_cycle(const struct device *dev, int32_t delta) {
     LOG_INF("%s: active pipeline now %d", dev->name, data->state.active);
 
 #if IS_ENABLED(CONFIG_SETTINGS)
-    if (config->persistent) {
+    if (persist && config->persistent) {
         k_work_reschedule(&data->save_work, K_MSEC(config->save_delay));
     }
 #endif
     return data->state.active;
+}
+
+int zip_pipeline_switch_cycle(const struct device *dev, int32_t delta) {
+    struct zip_ps_data *data = dev->data;
+    const struct zip_ps_config *config = dev->config;
+
+    int next = ((int)data->state.active + delta) % (int)config->pipelines_len;
+    if (next < 0) {
+        next += config->pipelines_len;
+    }
+    return zip_ps_apply(dev, (uint8_t)next, true);
+}
+
+int zip_pipeline_switch_set(const struct device *dev, uint8_t index, bool persist) {
+    return zip_ps_apply(dev, index, persist);
 }
 
 static int zip_ps_init(const struct device *dev) {
