@@ -1,18 +1,23 @@
 # ZMK Pipeline Switch Input Processor
 
 A meta input processor for ZMK that routes events through one of several
-pipelines of existing input processors, switchable at runtime with a
-keypress. The active pipeline can be persisted to flash and restored at
-power on. Use it to flip a trackball between e.g. cursor mode and scroll
-mode without dedicating a layer to it.
+pipelines of existing input processors, switchable at runtime. The active
+pipeline can be persisted to flash and restored at power on. Use it to flip a
+trackball between e.g. cursor mode and scroll mode without dedicating a layer
+to it.
 
 Includes two devicetree compatibles:
 
 - `zmk,input-processor-pipeline-switch` - the processor. Its child nodes are
   the pipelines (indexed 0..N-1 in declaration order), each with its own
   `input-processors` list of ordinary processors.
-- `zmk,behavior-pipeline-switch` - the toggle behavior: each press advances
-  to the next pipeline, wrapping around.
+- `zmk,behavior-pipeline-switch` - the select behavior: sets the active
+  pipeline to an absolute index (`param1`), optionally persisting (`param2`).
+
+The processor also exposes a C API (`include/zip_pipeline_switch.h`):
+`zip_pipeline_switch_set(dev, index, persist)` and
+`zip_pipeline_switch_cycle(dev, delta)`, for driving it from other modules
+(e.g. a host-facing config service).
 
 Pipeline iteration, per-entry parameters, and remainder tracking mirror
 ZMK's own input listener (`app/src/pointing/input_listener.c`), so wrapped
@@ -58,7 +63,7 @@ manifest:
     behaviors {
         ball_mode: ball_mode {
             compatible = "zmk,behavior-pipeline-switch";
-            #binding-cells = <0>;
+            #binding-cells = <2>;
             processor = <&zip_ball_mode>;
             display-name = "Ball Mode";
         };
@@ -70,18 +75,30 @@ manifest:
 };
 ```
 
-Then bind `&ball_mode` in your keymap. Other processors can sit alongside
-the switch in the listener's list (before or after it).
+Then bind `&ball_mode <index> <persist>` in your keymap, e.g.
+`&ball_mode 1 1` selects pipeline 1 (scroll) and saves it, `&ball_mode 0 1`
+selects pipeline 0 (cursor) and saves it. Use `0` for `<persist>` to apply
+without writing flash (live preview). Other processors can sit alongside the
+switch in the listener's list (before or after it).
 
 ### Processor properties
 
-| Property     | Type    | Required | Description                                            |
-| ------------ | ------- | -------- | ------------------------------------------------------ |
-| `persistent` | boolean | no       | Persist the active index to flash (requires settings).  |
-| `save_delay` | int     | no       | Debounce in ms before saving to flash (default 2000).   |
+| Property        | Type    | Required | Description                                              |
+| --------------- | ------- | -------- | ------------------------------------------------------- |
+| `persistent`    | boolean | no       | Persist the active index to flash (requires settings).   |
+| `save_delay`    | int     | no       | Debounce in ms before saving to flash (default 2000).    |
+| `default-index` | int     | no       | Pipeline active at boot before a persisted value loads.  |
 
 Child nodes: each child is one pipeline and requires an `input-processors`
-phandle-array. At least one child is required (enforced at compile time).
+phandle-array (at least one child, enforced at compile time). Each child may
+set an optional `label` string (defaults to the node name), surfaced via the
+introspection API for host config UIs:
+
+```c
+uint8_t     zip_pipeline_switch_count(dev);          // number of pipelines
+uint8_t     zip_pipeline_switch_active(dev);         // current index
+const char *zip_pipeline_switch_label(dev, index);   // label for a pipeline
+```
 
 ### Behavior properties
 
@@ -89,14 +106,27 @@ phandle-array. At least one child is required (enforced at compile time).
 | ----------- | ------- | -------- | -------------------------------------- |
 | `processor` | phandle | yes      | The pipeline-switch node to control.   |
 
+Binding params: `&ball_mode <index> <persist>` - `index` is the target
+pipeline (0..N-1), `persist` is `0` (apply only / live preview) or non-zero
+(apply and save to flash).
+
 ## Split keyboards
 
 The behavior uses `BEHAVIOR_LOCALITY_EVENT_SOURCE`: it runs on whichever
-half the key is physically pressed on, and switches that half's processor
-instance. Place the binding on the half whose listener (or input-split
-device) runs the pipelines. For a central-side listener that means a key on
-the central half. Behavior **node names** (labels don't matter) must be 8
-characters or fewer: the BLE split relay truncates behavior names to
+half the binding's event source points at, and switches that half's
+processor instance. From a keymap that is the half the key is pressed on, so
+place the binding on the half whose listener (or input-split device) runs the
+pipelines. For a central-side listener that means a key on the central half.
+
+To drive a *specific* half from central code (e.g. a host-facing config
+service on the central), invoke the binding directly with
+`zmk_behavior_invoke_binding(&binding, event, pressed)`, setting
+`event.source` to the target peripheral index (`0..N-1`) to relay, or
+`ZMK_POSITION_STATE_CHANGE_SOURCE_LOCAL` (255) to run on the central. The
+binding's `param1`/`param2` (index/persist) are carried across the relay.
+
+Behavior **node names** (labels don't matter) must be 8 characters or fewer:
+the BLE split relay truncates behavior names to
 `ZMK_SPLIT_RUN_BEHAVIOR_DEV_LEN` (9 bytes including the terminator) and the
 peripheral resolves the behavior by the truncated name, which then fails.
 

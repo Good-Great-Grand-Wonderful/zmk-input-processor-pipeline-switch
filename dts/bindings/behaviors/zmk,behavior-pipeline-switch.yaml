@@ -2,12 +2,15 @@
 # SPDX-License-Identifier: MIT
 
 description: |
-  Toggles the active pipeline of a zmk,input-processor-pipeline-switch
-  processor: each press advances to the next pipeline, wrapping around.
+  Sets the active pipeline of a zmk,input-processor-pipeline-switch processor
+  to an absolute index.
+    param1: target pipeline index (0..N-1, in child declaration order).
+    param2: persist flag - 0 = apply only (live preview), non-zero = apply and
+            save to flash (when the processor is `persistent`).
 
 compatible: "zmk,behavior-pipeline-switch"
 
-include: zero_param.yaml
+include: two_param.yaml
 
 properties:
   processor:

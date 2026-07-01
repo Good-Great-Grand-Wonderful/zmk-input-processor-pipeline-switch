@@ -33,6 +33,7 @@ struct zip_ps_remainders {
 };
 
 struct zip_ps_pipeline {
+    const char *label;
     size_t processors_len;
     const struct zmk_input_processor_entry *processors;
     size_t remainders_len;
@@ -47,6 +48,7 @@ struct zip_ps_config {
     const char *settings_key;
     int32_t save_delay;
     bool persistent;
+    uint8_t default_index;
     uint8_t pipelines_len;
     const struct zip_ps_pipeline *pipelines;
 };
@@ -125,15 +127,19 @@ static void save_work_callback(struct k_work *work) {
 
 #endif
 
-int zip_pipeline_switch_cycle(const struct device *dev, int32_t delta) {
+/* Shared by cycle and set: activate `index`, reset the incoming pipeline's
+ * remainders, and (when `persist`) schedule a debounced save. */
+static int zip_ps_apply(const struct device *dev, uint8_t index, bool persist) {
     struct zip_ps_data *data = dev->data;
     const struct zip_ps_config *config = dev->config;
 
-    int next = ((int)data->state.active + delta) % (int)config->pipelines_len;
-    if (next < 0) {
-        next += config->pipelines_len;
+    if (index >= config->pipelines_len) {
+        LOG_WRN("%s: pipeline index %d out of range (have %d)", dev->name, index,
+                config->pipelines_len);
+        return -EINVAL;
     }
-    data->state.active = (uint8_t)next;
+
+    data->state.active = index;
 
     // Stale fractional remainders from a previous activation are meaningless
     // for the new gesture, so start the incoming pipeline clean.
@@ -143,19 +149,55 @@ int zip_pipeline_switch_cycle(const struct device *dev, int32_t delta) {
     LOG_INF("%s: active pipeline now %d", dev->name, data->state.active);
 
 #if IS_ENABLED(CONFIG_SETTINGS)
-    if (config->persistent) {
+    if (persist && config->persistent) {
         k_work_reschedule(&data->save_work, K_MSEC(config->save_delay));
     }
 #endif
     return data->state.active;
 }
 
+int zip_pipeline_switch_cycle(const struct device *dev, int32_t delta) {
+    struct zip_ps_data *data = dev->data;
+    const struct zip_ps_config *config = dev->config;
+
+    int next = ((int)data->state.active + delta) % (int)config->pipelines_len;
+    if (next < 0) {
+        next += config->pipelines_len;
+    }
+    return zip_ps_apply(dev, (uint8_t)next, true);
+}
+
+int zip_pipeline_switch_set(const struct device *dev, uint8_t index, bool persist) {
+    return zip_ps_apply(dev, index, persist);
+}
+
+uint8_t zip_pipeline_switch_count(const struct device *dev) {
+    const struct zip_ps_config *config = dev->config;
+    return config->pipelines_len;
+}
+
+uint8_t zip_pipeline_switch_active(const struct device *dev) {
+    struct zip_ps_data *data = dev->data;
+    return data->state.active;
+}
+
+const char *zip_pipeline_switch_label(const struct device *dev, uint8_t index) {
+    const struct zip_ps_config *config = dev->config;
+    if (index >= config->pipelines_len) {
+        return NULL;
+    }
+    return config->pipelines[index].label;
+}
+
 static int zip_ps_init(const struct device *dev) {
     struct zip_ps_data *data = dev->data;
+    const struct zip_ps_config *config = dev->config;
     data->dev = dev;
 
+    // Boot default; a persisted selection (loaded later) overrides this.
+    data->state.active = config->default_index < config->pipelines_len ? config->default_index : 0;
+
 #if IS_ENABLED(CONFIG_SETTINGS)
-    const struct zip_ps_config *config = dev->config;
     if (config->persistent) {
         k_work_init_delayable(&data->save_work, save_work_callback);
     }
@@ -183,6 +225,7 @@ static const struct zmk_input_processor_driver_api zip_ps_driver_api = {
 
 #define ZIP_PS_PIPELINE(child)                                                                     \
     {                                                                                              \
+        .label = DT_PROP_OR(child, label, DT_NODE_FULL_NAME(child)),                               \
         .processors_len = DT_PROP_LEN(child, input_processors),                                    \
         .processors = _CONCAT(zip_ps_entries_, DT_DEP_ORD(child)),                            \
         .remainders_len = ZIP_PS_REM_TRACKERS(child),                                              \
@@ -202,6 +245,7 @@ static const struct zmk_input_processor_driver_api zip_ps_driver_api = {
         .settings_key = SETTINGS_PREFIX "/" #n,                                                    \
         .save_delay = DT_INST_PROP(n, save_delay),                                                 \
         .persistent = DT_INST_PROP(n, persistent),                                                 \
+        .default_index = DT_INST_PROP_OR(n, default_index, 0),                                     \
         .pipelines_len = ARRAY_SIZE(zip_ps_pipelines_##n),                                         \
         .pipelines = zip_ps_pipelines_##n,                                                         \
     };                                                                                             \
